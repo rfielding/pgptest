@@ -14,6 +14,8 @@ var passphrase string
 var secretKeyring string
 var publicKeyring string
 var mySecretString string
+var inFileName string
+var outFileName string
 
 func getEntityList(ring string) (entityList openpgp.EntityList, err error) {
 	keyringFileBuffer, _ := os.Open(ring)
@@ -26,6 +28,11 @@ func encTest(r io.Reader, w io.Writer) error {
 	entityList, err := getEntityList(publicKeyring)
 	if err != nil {
 		return err
+	}
+	for i := range entityList {
+		for k := range entityList[i].Identities {
+			log.Printf("encrypt to: %v %v", k, entityList[i].Identities[k])
+		}
 	}
 
 	wPipe, err := openpgp.Encrypt(w, entityList, nil, nil, nil)
@@ -60,14 +67,41 @@ func main() {
 	//SET THE PGP PASSWORD IN A TEMP ENV VAR!
 	//    pass=foobar go run pgptest.go -in ~/Downloads/giantFile.iso -out giantFile.iso
 	passphrase = os.Getenv("pass")
-	secretKeyring = prefix + "/.gnupg/secring.gpg"
-	publicKeyring = prefix + "/.gnupg/pubring.gpg"
+	flag.StringVar(&secretKeyring, "secring", prefix+"/.gnupg/secring.gpg", "the secret ring")
+	flag.StringVar(&publicKeyring, "pubring", prefix+"/.gnupg/pubring.gpg", "the public ring")
 	flag.StringVar(&mySecretString, "mySecretString", "fark", "the data to encrypt")
-	var inFileName string
-	var outFileName string
 	flag.StringVar(&inFileName, "in", "plaintext", "the input file to encrypt")
 	flag.StringVar(&outFileName, "out", "ciphertext", "the ciphertext")
+	var batchCreate string
+	flag.StringVar(&batchCreate, "create", "", "batch create the keyring")
 	flag.Parse()
+	if batchCreate != "" {
+		log.Println("Creating keyring.  This can take minutes!! ....")
+		args := []string{
+			"--verbose",
+			"--batch",
+			"--gen-key",
+			batchCreate,
+		}
+		attr := new(os.ProcAttr)
+		rFile, err := os.Open("/dev/random")
+		if err != nil {
+			log.Fatal("cannot open random")
+		}
+		defer rFile.Close()
+		cmd := "/usr/bin/gpg"
+		attr.Files = []*os.File{
+			rFile,
+			os.Stdout,
+			os.Stderr,
+		}
+		log.Printf("running: %v, %v", cmd, args)
+		if proc, err := os.StartProcess("/usr/bin/gpg", args, attr); err != nil {
+			log.Fatal(err)
+		} else {
+			proc.Wait()
+		}
+	}
 
 	in, err := os.Open(inFileName)
 	if err != nil {

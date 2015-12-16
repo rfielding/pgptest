@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#run with
+#  pass=foobar ./runit
+#to pass in password
+theFileToEncrypt=$1
+cat >unattendedKeyCreate <<EOF
+  Key-Type: DSA
+  Key-Length: 1024
+  Subkey-Type: ELG-E
+  Subkey-Length: 1024
+  Name-Real: Robby F
+  Name-Comment: automatic
+  Name-Email: robf@foo.com
+  Expire-Date: 0
+  Passphrase: ${pass}
+  %pubring pubring.gpg
+  %secring secring.gpg
+  %commit 
+EOF
+go run pgptest.go \
+	-in $theFileToEncrypt \
+	-out $theFileToEncrypt.encrypted \
+	-secring secring.gpg \
+	-pubring pubring.gpg \
+	-create unattendedKeyCreate 
+
